@@ -216,6 +216,24 @@ std::string remove_trailing_spaces(const std::string& in) {
   return short_name;
 }
 
+// Sound names are written as file names. Some contain characters Windows
+// forbids in a file name ("SHIP_GUN_HIT-*" in Jak 2, "*BONUS" in Jak 3), which
+// made the whole decompile fail on Windows. Replace them, and drop trailing
+// spaces and dots, which Windows also strips or rejects.
+std::string safe_file_name(const std::string& in) {
+  std::string out;
+  out.reserve(in.size());
+  for (char c : in) {
+    bool forbidden = (unsigned char)c < 32 || c == '<' || c == '>' || c == ':' || c == '"' ||
+                     c == '/' || c == '\\' || c == '|' || c == '?' || c == '*';
+    out.push_back(forbidden ? '_' : c);
+  }
+  while (!out.empty() && (out.back() == ' ' || out.back() == '.')) {
+    out.pop_back();
+  }
+  return out;
+}
+
 struct AudioFileInfo {
   std::string filename;
   double length_seconds;
@@ -245,7 +263,7 @@ AudioFileInfo process_audio_file(const fs::path& output_folder,
   }
 
   file_util::create_dir_if_needed(output_folder / suffix);
-  auto file_name = fmt::format("{}.wav", remove_trailing_spaces(name));
+  auto file_name = fmt::format("{}.wav", safe_file_name(name));
   write_wave_file(left_samples, right_samples, header.sample_rate,
                   output_folder / suffix / file_name);
 
@@ -380,7 +398,7 @@ void process_music(const fs::path& output_path, const fs::path& input_dir) {
       fakeplayer.Tick(left_samples, right_samples, FIVE_MINUTES);
 
       auto file_name = variantName == "default" ? mus_name : mus_name + '_' + variantName;
-      file_name = fmt::format("{}.wav", file_name);
+      file_name = fmt::format("{}.wav", safe_file_name(file_name));
       write_wave_file(left_samples, right_samples, snd::SAMPLE_RATE, output_folder / file_name);
       audio_len += left_samples.size() / (float)snd::SAMPLE_RATE;
 
@@ -443,7 +461,7 @@ void process_sfx(const fs::path& output_path, const fs::path& input_dir) {
       else
         name = "sound" + std::to_string(sound_index);
 
-      auto file_name = fmt::format("{}.wav", remove_trailing_spaces(name));
+      auto file_name = fmt::format("{}.wav", safe_file_name(name));
       write_wave_file(left_samples, right_samples, snd::SAMPLE_RATE, output_folder / file_name);
       audio_len += left_samples.size() / (float)snd::SAMPLE_RATE;
 
